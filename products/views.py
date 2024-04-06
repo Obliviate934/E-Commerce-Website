@@ -7,10 +7,11 @@ from .models import Product, Order
 from django.urls import reverse_lazy
 from django.db.models import Q # for search method
 from django.http import JsonResponse
-from .forms import ContactForm
+from .forms import ContactForm, CheckoutForm
 from django.http import JsonResponse
 from django.contrib.auth.views import PasswordChangeView
 import json
+from django.views.decorators.csrf import csrf_exempt  
 
 
 
@@ -35,20 +36,51 @@ class SearchResultsListView(ListView):
 		Q(title__icontains=query) | Q(designer_name__icontains=query)
 		)
 
+# class ProductCheckoutView(LoginRequiredMixin, DetailView):
+#     model = Product
+#     template_name = 'checkout.html'
+#     login_url     = 'login'
+
+
+# def paymentComplete(request):
+#     if request.method == 'POST':
+#         # Process payment details here
+#         # Retrieve card details from request.POST['card_number'], request.POST['expiry_date'], request.POST['cvv']
+#         # Perform payment processing logic here
+#         # For demonstration purposes, let's assume payment is successful
+#         # You should replace this with your actual payment processing logic
+#         # Example:
+#         card_number = request.POST.get('card_number')
+#         expiry_date = request.POST.get('expiry_date')
+#         cvv = request.POST.get('cvv')
+#         # Process payment...
+#         return JsonResponse('Payment completed!', safe=False)
+#     else:
+#         return JsonResponse('Invalid request!', status=400)
+     
+@csrf_exempt
+def paymentComplete(request):
+    # Simply redirect to the list page
+    return redirect('list')
+     
 class ProductCheckoutView(LoginRequiredMixin, DetailView):
     model = Product
     template_name = 'checkout.html'
-    login_url     = 'login'
+    login_url = 'login'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['checkout_form'] = CheckoutForm()  
+        return context
 
-def paymentComplete(request):
-	body = json.loads(request.body)
-	print('BODY:', body)
-	product = Product.objects.get(id=body['productId'])
-	Order.objects.create(
-		product=product
-	)
-	return JsonResponse('Payment completed!', safe=False)
+    def post(self, request, *args, **kwargs):
+        form = CheckoutForm(request.POST)
+        if form.is_valid():
+            messages.success(request, 'Payment completed successfully!')
+            return redirect('list')
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+     
 
 def contact(request):
     if request.method == 'POST':
@@ -59,10 +91,7 @@ def contact(request):
             email = form.cleaned_data['email']
             subject = form.cleaned_data['subject']
             message = form.cleaned_data['message']
-     
-            # Perform any additional processing (e.g., send email)
-            # Return a JSON response indicating success
-            #return JsonResponse({'success': True})
+
             messages.success(request, 'Your message has been sent successfully!')
             return redirect('list')
     else:
